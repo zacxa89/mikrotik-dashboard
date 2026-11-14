@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebBox Pro — MikroTik RouterOS Dashboard & Manager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            900: '#0f172a',
+                            950: '#080d17',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar for WinBox / Cyber Dark Aesthetic */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0ea5e9;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.6);
+        }
+        .terminal-glow {
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.85);
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.25); }
+        }
+        .animate-pulse-dot {
+            animation: pulse-dot 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
+
+    <!-- Toast Notification Container (Replaces alert) -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Custom Confirm/Modal Dialog -->
+    <div id="custom-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+            <div class="flex items-center gap-3 mb-3">
+                <div id="modal-icon" class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-circle-info"></i>
+                </div>
+                <h3 id="modal-title" class="text-lg font-semibold text-white">Judul Konfirmasi</h3>
+            </div>
+            <div id="modal-body" class="text-sm text-slate-300 mb-6 leading-relaxed">
+                Pesan detail di sini.
+            </div>
+            <div id="modal-actions" class="flex justify-end gap-2">
+                <button id="modal-cancel" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition">Batal</button>
+                <button id="modal-confirm" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition">Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- App Wrapper -->
+    <div class="flex h-screen overflow-hidden">
+
+        <!-- Mobile Sidebar Backdrop -->
+        <div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden backdrop-blur-xs"></div>
+
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-slate-800 flex flex-col transition-transform duration-300 -translate-x-full lg:translate-x-0">
+            <!-- Brand Header -->
+            <div class="h-16 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-950/50">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                        <i class="fa-solid fa-network-wired text-white text-base"></i>
+                    </div>
+                    <div>
+                        <span class="font-bold text-white tracking-tight text-base block leading-none">WebBox <span class="text-cyan-400">Pro</span></span>
+                        <span class="text-[11px] text-slate-400 font-mono">RouterOS v7 Manager</span>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-1.5 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Router Quick Identity Card -->
+            <div class="p-3 mx-3 mt-3 rounded-xl bg-slate-850 border border-slate-800/80">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Target Router</span>
+                    <span id="sidebar-status-badge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                        DISCONNECTED
+                    </span>
+                </div>
+                <div id="sidebar-router-name" class="text-sm font-semibold text-white truncate">Belum Terhubung</div>
+                <div id="sidebar-router-meta" class="text-xs text-slate-400 font-mono mt-0.5 truncate">RouterOS v7+ REST API</div>
+            </div>
+
+            <!-- Navigation Menu -->
+            <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1" id="nav-menu">
+                <button onclick="switchTab('dashboard')" data-tab="dashboard" class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                    <i class="fa-solid fa-gauge-high w-5 text-center"></i>
+                    <span>Dashboard Overview</span>
+                </button>
+                <button onclick="switchTab('interfaces')" data-tab="interfaces" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-ethernet w-5 text-center"></i>
+                    <span>Interfaces & Traffic</span>
+                </button>
+                <button onclick="switchTab('ip-dhcp')" data-tab="ip-dhcp" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-sitemap w-5 text-center"></i>
+                    <span>IP Address & DHCP</span>
+                </button>
+                <button onclick="switchTab('hotspot-pppoe')" data-tab="hotspot-pppoe" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-users-gear w-5 text-center"></i>
+                    <span>Hotspot & PPPoE</span>
+                </button>
+                <button onclick="switchTab('firewall')" data-tab="firewall" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-shield-halved w-5 text-center"></i>
+                    <span>Firewall & NAT</span>
+                </button>
+                <button onclick="switchTab('queues')" data-tab="queues" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-sliders w-5 text-center"></i>
+                    <span>Simple Queues</span>
+                </button>
+                <button onclick="switchTab('logs-terminal')" data-tab="logs-terminal" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-terminal w-5 text-center"></i>
+                    <span>System Logs & CLI</span>
+                </button>
+                <button onclick="switchTab('backup')" data-tab="backup" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all">
+                    <i class="fa-solid fa-file-export w-5 text-center"></i>
+                    <span>Backup & Export</span>
+                </button>
+            </nav>
+
+            <!-- Footer Uptime Info -->
+            <div class="p-3 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400 flex items-center justify-between">
+                <span>Uptime:</span>
+                <span id="sidebar-uptime" class="font-mono text-cyan-400 font-medium">--</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+            <!-- Top Header & Connection Manager Bar -->
+            <header class="bg-slate-900/90 border-b border-slate-800 backdrop-blur-md z-20">
+                <div class="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                    <!-- Left: Mobile Hamburger & Current Section Title -->
+                    <div class="flex items-center gap-3">
+                        <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <div>
+                            <h1 id="page-title" class="text-base sm:text-lg font-bold text-white leading-tight">Dashboard Overview</h1>
+                            <p id="page-subtitle" class="text-xs text-slate-400 hidden sm:block">Pemantauan performa perangkat keras & trafik jaringan real-time via REST API</p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Connection Manager Toggle & Disconnect Action -->
+                    <div class="flex items-center gap-2">
+                        <button onclick="refreshAllNow()" id="btn-manual-sync" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-cyan-400 transition" title="Sinkronisasi Data Sekarang">
+                            <i class="fa-solid fa-rotate"></i>
+                            <span class="hidden sm:inline">Sync</span>
+                        </button>
+                        <button onclick="disconnectRouter()" id="btn-disconnect" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-semibold transition">
+                            <i class="fa-solid fa-link-slash"></i>
+                            <span>Putuskan</span>
+                        </button>
+                        <button onclick="toggleConnectionPanel()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 transition">
+                            <i class="fa-solid fa-plug text-cyan-400"></i>
+                            <span>Koneksi Router</span>
+                            <i id="conn-chevron" class="fa-solid fa-chevron-down text-[10px] text-slate-400 transition-transform"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Collapsible Connection Manager Form -->
+                <div id="connection-panel" class="border-t border-slate-800 bg-slate-950/95 px-4 py-4 transition-all">
+                    <div class="max-w-7xl mx-auto">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 items-end">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Host / IP Router</label>
+                                <input type="text" id="conn-host" value="192.168.88.1" placeholder="192.168.88.1" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Port REST API</label>
+                                <input type="number" id="conn-port" value="80" placeholder="80 / 443" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Username</label>
+                                <input type="text" id="conn-user" value="admin" placeholder="admin" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Password</label>
+                                <input type="password" id="conn-pass" placeholder="••••••••" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+                            </div>
+                            <div class="flex items-center justify-between sm:justify-start gap-3 py-1.5">
+                                <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" id="conn-https" class="rounded bg-slate-800 border-slate-600 text-cyan-500 focus:ring-0">
+                                    <span class="text-xs text-slate-300 font-medium">HTTPS (SSL)</span>
+                                </label>
+                                <button onclick="saveRouterProfile()" title="Simpan Profil ke Browser" class="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                                    Simpan
+                                </button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="connectRealRouter()" class="flex-1 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-lg shadow-cyan-600/20 transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-link"></i>
+                                    <span>Hubungkan</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-circle-info text-cyan-400"></i>
+                                <span>Aktifkan di MikroTik v7+: <code class="text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">/ip service set www disabled=no</code> &amp; <code class="text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">/ip service set www-ssl disabled=no</code> (pastikan CORS / akses jaringan diizinkan).</span>
+                            </div>
+                            <div id="saved-profiles-list" class="flex items-center gap-1.5"></div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dynamic Content Scroll Container -->
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6" id="main-scroll">
+
+                <!-- Initial Disconnected Banner (Visible when not connected) -->
+                <div id="disconnected-welcome-banner" class="glass-panel rounded-xl p-6 border border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                        <div class="space-y-2 max-w-2xl">
+                            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
+                                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                                Status: Belum Terhubung ke Perangkat MikroTik
+                            </div>
+                            <h2 class="text-xl font-bold text-white">Hubungkan ke MikroTik RouterOS v7+ REST API</h2>
+                            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                                Masukkan alamat IP, Port layanan web (<code class="text-cyan-400 font-mono">www</code> / <code class="text-cyan-400 font-mono">www-ssl</code>), Username, dan Password router Anda pada panel <strong>Koneksi Router</strong> di atas untuk memuat telemetri perangkat, trafik interface, pengguna Hotspot/PPPoE, firewall, dan terminal CLI secara langsung.
+                            </p>
+                            <div class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-slate-400">
+                                <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                                    <span class="text-cyan-400 block font-sans font-semibold mb-1">1. Aktifkan REST API (HTTP/HTTPS):</span>
+                                    /ip service set www disabled=no port=80
+                                </div>
+                                <div class="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                                    <span class="text-cyan-400 block font-sans font-semibold mb-1">2. Hak Akses User API:</span>
+                                    /user group set full policy=...,rest-api
+                                </div>
+                            </div>
+                        </div>
+                        <div class="shrink-0">
+                            <button onclick="document.getElementById('conn-host').focus()" class="px-5 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs sm:text-sm font-semibold shadow-lg shadow-cyan-600/25 transition flex items-center gap-2">
+                                <i class="fa-solid fa-arrow-up"></i>
+                                <span>Isi Kredensial Router</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== TAB 1: DASHBOARD OVERVIEW ==================== -->
+                <section id="tab-dashboard" class="tab-content space-y-6">
+                    <!-- Hardware & Status Info Banner -->
+                    <div class="glass-panel rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                        <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+                            <div>
+                                <span class="text-[11px] text-slate-400 block">Board Name</span>
+                                <span id="info-board" class="text-sm font-semibold text-white font-mono">--</span>
+                            </div>
+                            <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block">RouterOS Version</span>
+                                <span id="info-version" class="text-sm font-semibold text-cyan-400 font-mono">--</span>
+                            </div>
+                            <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block">Architecture</span>
+                                <span id="info-arch" class="text-sm font-semibold text-slate-200 font-mono">--</span>
+                            </div>
+                            <div class="h-8 w-px bg-slate-800 hidden sm:block"></div>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block">Storage (HDD)</span>
+                                <span id="info-health" class="text-sm font-semibold text-emerald-400 font-mono">--</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400">Auto-Polling:</span>
+                            <select id="refresh-interval" onchange="updatePollingRate()" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono focus:outline-none">
+                                <option value="2000" selected>2 Detik</option>
+                                <option value="5000">5 Detik</option>
+                                <option value="10000">10 Detik</option>
+                                <option value="0">Manual</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 4 Real-time Metric Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <!-- CPU Load -->
+                        <div class="glass-panel rounded-xl p-5 relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">CPU Load</span>
+                                <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                                    <i class="fa-solid fa-microchip"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <span id="metric-cpu" class="text-3xl font-bold text-white font-mono">0%</span>
+                                <span id="metric-cpu-freq" class="text-xs text-slate-400 font-mono">-- MHz</span>
+                            </div>
+                            <div class="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+                                <div id="bar-cpu" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Memory Usage -->
+                        <div class="glass-panel rounded-xl p-5 relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Memory Usage</span>
+                                <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+                                    <i class="fa-solid fa-memory"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <span id="metric-mem-pct" class="text-3xl font-bold text-white font-mono">0%</span>
+                                <span id="metric-mem-mb" class="text-xs text-slate-400 font-mono">0 / 0 MB</span>
+                            </div>
+                            <div class="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+                                <div id="bar-mem" class="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Active Users -->
+                        <div class="glass-panel rounded-xl p-5 relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Users</span>
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                                    <i class="fa-solid fa-users"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline gap-2">
+                                <span id="metric-users" class="text-3xl font-bold text-white font-mono">0</span>
+                                <span id="metric-users-detail" class="text-xs text-emerald-400 font-mono">0 Hotspot • 0 PPPoE</span>
+                            </div>
+                            <div class="mt-3 text-xs text-slate-400 flex items-center justify-between">
+                                <span>DHCP Leases Terdaftar:</span>
+                                <span id="metric-dhcp-count" class="font-mono text-slate-200">0 Host</span>
+                            </div>
+                        </div>
+
+                        <!-- Total Throughput -->
+                        <div class="glass-panel rounded-xl p-5 relative overflow-hidden">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Interface Throughput</span>
+                                <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                                    <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <span class="text-[11px] text-cyan-400 block font-medium"><i class="fa-solid fa-arrow-down mr-1"></i>RX (Download)</span>
+                                    <span id="metric-rx" class="text-lg font-bold text-white font-mono">0.0 Mbps</span>
+                                </div>
+                                <div>
+                                    <span class="text-[11px] text-emerald-400 block font-medium"><i class="fa-solid fa-arrow-up mr-1"></i>TX (Upload)</span>
+                                    <span id="metric-tx" class="text-lg font-bold text-white font-mono">0.0 Mbps</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Traffic Chart & Interface Summary Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Live Traffic Canvas Chart -->
+                        <div class="lg:col-span-2 glass-panel rounded-xl p-5 flex flex-col">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                                <div>
+                                    <h2 class="text-sm font-bold text-white">Live Interface Traffic Monitor</h2>
+                                    <p class="text-xs text-slate-400">Data real-time dari <code class="text-cyan-400">/rest/interface/monitor-traffic</code> (Mbps)</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <select id="dashboard-iface-select" onchange="changeDashboardInterface(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono focus:outline-none">
+                                        <option value="">-- Pilih Interface --</option>
+                                    </select>
+                                    <div class="flex items-center gap-3 text-xs">
+                                        <span class="flex items-center gap-1.5 text-cyan-400 font-medium"><span class="w-2.5 h-2.5 rounded-xs bg-cyan-400"></span> RX</span>
+                                        <span class="flex items-center gap-1.5 text-emerald-400 font-medium"><span class="w-2.5 h-2.5 rounded-xs bg-emerald-400"></span> TX</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="relative flex-1 min-h-[250px] w-full">
+                                <canvas id="trafficChart" class="w-full h-full rounded-lg"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Interface Quick Status List -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-sm font-bold text-white">Status Interface</h2>
+                                <button onclick="switchTab('interfaces')" class="text-xs text-cyan-400 hover:underline">Lihat Semua</button>
+                            </div>
+                            <div id="dashboard-iface-list" class="space-y-2.5 flex-1 overflow-y-auto">
+                                <div class="text-xs text-slate-500 text-center py-8">Menunggu koneksi router...</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 2: INTERFACES & TRAFFIC ==================== -->
+                <section id="tab-interfaces" class="tab-content hidden space-y-6">
+                    <div class="glass-panel rounded-xl p-5">
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h2 class="text-base font-bold text-white">Daftar Interface Jaringan</h2>
+                                <p class="text-xs text-slate-400">Kelola status port fisik, bridge, VLAN, dan pantau laju paket RX/TX</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="resetInterfaceCounters()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 transition">
+                                    <i class="fa-solid fa-rotate-left mr-1"></i> Reset Counters
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Status</th>
+                                        <th class="py-3 px-3">Nama Interface</th>
+                                        <th class="py-3 px-3">Tipe</th>
+                                        <th class="py-3 px-3">MTU / Speed</th>
+                                        <th class="py-3 px-3">MAC Address</th>
+                                        <th class="py-3 px-3 text-right">RX Rate</th>
+                                        <th class="py-3 px-3 text-right">TX Rate</th>
+                                        <th class="py-3 px-3 text-right">Total RX / TX</th>
+                                        <th class="py-3 px-3 text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="interfaces-table-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 3: IP ADDRESSES & DHCP LEASES ==================== -->
+                <section id="tab-ip-dhcp" class="tab-content hidden space-y-6">
+                    <!-- Sub-tabs Navigation -->
+                    <div class="flex gap-2 border-b border-slate-800 pb-2">
+                        <button onclick="switchSubTab('ip-dhcp', 'ip-list')" id="subbtn-ip-list" class="px-4 py-2 rounded-lg text-xs font-semibold bg-cyan-600 text-white transition">
+                            <i class="fa-solid fa-network-wired mr-1.5"></i> IP Addresses
+                        </button>
+                        <button onclick="switchSubTab('ip-dhcp', 'dhcp-leases')" id="subbtn-dhcp-leases" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+                            <i class="fa-solid fa-server mr-1.5"></i> DHCP Server Leases
+                        </button>
+                    </div>
+
+                    <!-- Sub-tab: IP Addresses -->
+                    <div id="subtab-ip-list" class="glass-panel rounded-xl p-5 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h2 class="text-base font-bold text-white">Konfigurasi IP Address</h2>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input type="text" id="new-ip-addr" placeholder="10.10.10.1/24" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white w-36">
+                                <select id="new-ip-iface" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                                    <option value="ether1-WAN">ether1-WAN</option>
+                                    <option value="ether2-LAN">ether2-LAN</option>
+                                    <option value="bridge-local">bridge-local</option>
+                                    <option value="wlan1-Hotspot">wlan1-Hotspot</option>
+                                </select>
+                                <input type="text" id="new-ip-comment" placeholder="Komentar..." class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white w-36">
+                                <button onclick="addIpAddress()" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition">
+                                    <i class="fa-solid fa-plus mr-1"></i> Tambah IP
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Flag</th>
+                                        <th class="py-3 px-3">Address</th>
+                                        <th class="py-3 px-3">Network</th>
+                                        <th class="py-3 px-3">Interface</th>
+                                        <th class="py-3 px-3">Comment</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ip-table-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tab: DHCP Leases -->
+                    <div id="subtab-dhcp-leases" class="hidden glass-panel rounded-xl p-5 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h2 class="text-base font-bold text-white">DHCP Server Leases</h2>
+                                <p class="text-xs text-slate-400">Daftar perangkat klien yang mendapatkan IP otomatis dari router</p>
+                            </div>
+                            <input type="text" id="dhcp-search" onkeyup="renderDhcpTable()" placeholder="Cari IP / MAC / Hostname..." class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white w-56">
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Status</th>
+                                        <th class="py-3 px-3">IP Address</th>
+                                        <th class="py-3 px-3">MAC Address</th>
+                                        <th class="py-3 px-3">Active Host Name</th>
+                                        <th class="py-3 px-3">Server</th>
+                                        <th class="py-3 px-3">Expires After</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dhcp-table-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 4: HOTSPOT & PPPOE USERS ==================== -->
+                <section id="tab-hotspot-pppoe" class="tab-content hidden space-y-6">
+                    <!-- Add User Form Card -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-3">Tambah Akun Hotspot / PPPoE Baru</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Layanan</label>
+                                <select id="new-user-service" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white">
+                                    <option value="Hotspot">Hotspot User</option>
+                                    <option value="PPPoE">PPPoE Secret</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Username</label>
+                                <input type="text" id="new-user-name" placeholder="user_budi" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Password</label>
+                                <input type="text" id="new-user-pass" placeholder="123456" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Profile Bandwidth</label>
+                                <select id="new-user-profile" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                                    <option value="Paket-10Mbps">Paket-10Mbps (10M/10M)</option>
+                                    <option value="Paket-20Mbps">Paket-20Mbps (20M/20M)</option>
+                                    <option value="Paket-50Mbps">Paket-50Mbps (50M/50M)</option>
+                                    <option value="Voucher-3Jam">Voucher-3Jam (5M/5M)</option>
+                                </select>
+                            </div>
+                            <button onclick="addHotspotPppoeUser()" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition h-[32px]">
+                                <i class="fa-solid fa-user-plus mr-1"></i> Buat Akun
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Sessions Table -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 class="text-base font-bold text-white">Sesi Aktif (Hotspot & PPPoE Online)</h2>
+                                <p class="text-xs text-slate-400">Pengguna yang sedang terhubung saat ini beserta pemakaian kuota</p>
+                            </div>
+                            <span id="active-session-badge" class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-semibold">0 Online</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Tipe</th>
+                                        <th class="py-3 px-3">Username</th>
+                                        <th class="py-3 px-3">IP Address</th>
+                                        <th class="py-3 px-3">MAC / Caller ID</th>
+                                        <th class="py-3 px-3">Uptime</th>
+                                        <th class="py-3 px-3">Download / Upload</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="active-sessions-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Registered Users Database -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-4">Daftar Akun Terdaftar (Users / Secrets)</h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Layanan</th>
+                                        <th class="py-3 px-3">Username</th>
+                                        <th class="py-3 px-3">Password</th>
+                                        <th class="py-3 px-3">Profile</th>
+                                        <th class="py-3 px-3">Status</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="registered-users-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 5: FIREWALL & NAT RULES ==================== -->
+                <section id="tab-firewall" class="tab-content hidden space-y-6">
+                    <!-- Add Firewall Rule Form -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-3">Tambah Firewall / NAT Rule</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 items-end">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Tabel / Chain</label>
+                                <select id="fw-chain" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                                    <option value="filter:input">Filter: input</option>
+                                    <option value="filter:forward">Filter: forward</option>
+                                    <option value="nat:srcnat">NAT: srcnat</option>
+                                    <option value="nat:dstnat">NAT: dstnat</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Protocol & Dst Port</label>
+                                <input type="text" id="fw-proto" placeholder="tcp:80,443" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Src / Dst Address</label>
+                                <input type="text" id="fw-addr" placeholder="192.168.88.0/24" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Action</label>
+                                <select id="fw-action" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                                    <option value="accept">accept</option>
+                                    <option value="drop">drop</option>
+                                    <option value="masquerade">masquerade</option>
+                                    <option value="dst-nat">dst-nat</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Komentar</label>
+                                <input type="text" id="fw-comment" placeholder="Allow Web Traffic" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white">
+                            </div>
+                            <button onclick="addFirewallRule()" class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition h-[32px]">
+                                <i class="fa-solid fa-plus mr-1"></i> Tambah Rule
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Firewall Rules Table -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-4">Daftar Firewall Filter & NAT Rules</h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-2">#</th>
+                                        <th class="py-3 px-2">Urutan</th>
+                                        <th class="py-3 px-3">Tipe / Chain</th>
+                                        <th class="py-3 px-3">Action</th>
+                                        <th class="py-3 px-3">Protocol / Port</th>
+                                        <th class="py-3 px-3">Address</th>
+                                        <th class="py-3 px-3 text-right">Packets / Bytes</th>
+                                        <th class="py-3 px-3">Comment</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="firewall-table-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 6: SIMPLE QUEUES (BANDWIDTH) ==================== -->
+                <section id="tab-queues" class="tab-content hidden space-y-6">
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-3">Tambah Simple Queue (Limit Bandwidth)</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Nama Queue</label>
+                                <input type="text" id="q-name" placeholder="Client-VIP-01" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Target IP / Subnet</label>
+                                <input type="text" id="q-target" placeholder="192.168.88.50/32" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Max Upload (TX)</label>
+                                <input type="text" id="q-up" placeholder="10M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Max Download (RX)</label>
+                                <input type="text" id="q-down" placeholder="25M" class="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white">
+                            </div>
+                            <button onclick="addSimpleQueue()" class="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition h-[32px]">
+                                <i class="fa-solid fa-gauge mr-1"></i> Terapkan Limit
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-5">
+                        <h2 class="text-base font-bold text-white mb-4">Daftar Simple Queues Aktif</h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+                                        <th class="py-3 px-3">Nama</th>
+                                        <th class="py-3 px-3">Target</th>
+                                        <th class="py-3 px-3">Max Limit (Up/Down)</th>
+                                        <th class="py-3 px-3">Real-time Usage</th>
+                                        <th class="py-3 px-3 w-48">Utilisasi Bandwidth</th>
+                                        <th class="py-3 px-3 text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="queues-table-body" class="divide-y divide-slate-800/60 text-xs font-mono">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 7: SYSTEM LOGS & TERMINAL CLI ==================== -->
+                <section id="tab-logs-terminal" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- System Logs Viewer -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col h-[520px]">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-list-ul text-cyan-400"></i>
+                                    <h2 class="text-sm font-bold text-white">System Logs</h2>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <select id="log-topic-filter" onchange="renderLogs()" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none">
+                                        <option value="all">Semua Topik</option>
+                                        <option value="info">system, info</option>
+                                        <option value="warning">warning</option>
+                                        <option value="error">critical, error</option>
+                                        <option value="hotspot">hotspot, account</option>
+                                        <option value="dhcp">dhcp, info</option>
+                                    </select>
+                                    <button onclick="clearLogs()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">Bersihkan</button>
+                                </div>
+                            </div>
+                            <div id="logs-container" class="flex-1 overflow-y-auto bg-slate-950 rounded-lg p-3 border border-slate-800 font-mono text-xs space-y-1.5">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Interactive Web Terminal CLI -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col h-[520px]">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-terminal text-emerald-400"></i>
+                                    <h2 class="text-sm font-bold text-white">RouterOS Terminal CLI</h2>
+                                </div>
+                                <span class="text-[11px] font-mono text-slate-400">Ketik <code class="text-cyan-400">help</code> untuk daftar perintah</span>
+                            </div>
+                            <div id="terminal-output" onclick="document.getElementById('terminal-input').focus()" class="flex-1 overflow-y-auto bg-[#05080f] rounded-t-lg p-3.5 border border-slate-800 font-mono text-xs text-slate-200 terminal-glow space-y-1 cursor-text">
+                                <div class="text-cyan-400 font-semibold">  MMM      MMM       KKK                          TTTTTTTTTTT      KKK</div>
+                                <div class="text-cyan-400 font-semibold">  MMMM    MMMM       KKK                          TTTTTTTTTTT      KKK</div>
+                                <div class="text-cyan-400 font-semibold">  MMM MMMM MMM  III  KKK  KKK  RRRRRR     OOOOOO      TTT     III  KKK  KKK</div>
+                                <div class="text-cyan-400 font-semibold">  MMM  MM  MMM  III  KKKKK     RRR  RRR  OOO  OOO     TTT     III  KKKKK</div>
+                                <div class="text-cyan-400 font-semibold">  MMM      MMM  III  KKK KKK   RRRRRR    OOO  OOO     TTT     III  KKK KKK</div>
+                                <div class="text-cyan-400 font-semibold">  MMM      MMM  III  KKK  KKK  RRR  RRR   OOOOOO      TTT     III  KKK  KKK</div>
+                                <div class="text-slate-400 mt-2 mb-2">MikroTik RouterOS REST API Shell • WebBox Pro</div>
+                                <div class="text-amber-400">Hubungkan ke router terlebih dahulu untuk menjalankan perintah langsung via REST API. Ketik 'help' untuk panduan.</div>
+                            </div>
+                            <div class="flex items-center bg-[#05080f] border-x border-b border-slate-800 rounded-b-lg px-3 py-2 font-mono text-xs">
+                                <span id="terminal-prompt" class="text-emerald-400 mr-2 select-none">[admin@RouterOS] &gt;</span>
+                                <input type="text" id="terminal-input" onkeydown="handleTerminalKey(event)" autocomplete="off" placeholder="Masukkan perintah RouterOS (misal: /system/resource/print atau /ping address=8.8.8.8 count=4)..." class="flex-1 bg-transparent text-white focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAB 8: BACKUP & EXPORT CONFIG ==================== -->
+                <section id="tab-backup" class="tab-content hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Export .rsc Script -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col justify-between">
+                            <div>
+                                <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg mb-4">
+                                    <i class="fa-solid fa-file-code"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white mb-1">Export Script (.rsc)</h3>
+                                <p class="text-xs text-slate-400 leading-relaxed mb-4">Hasilkan skrip konfigurasi RouterOS lengkap (IP Address, Firewall, NAT, Queues, Hotspot/PPPoE) siap impor ke router baru.</p>
+                            </div>
+                            <button onclick="generateAndDownloadRsc()" class="w-full py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-download"></i> Download backup-config.rsc
+                            </button>
+                        </div>
+
+                        <!-- Export JSON Snapshot -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col justify-between">
+                            <div>
+                                <div class="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg mb-4">
+                                    <i class="fa-solid fa-database"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white mb-1">Snapshot Telemetry (JSON)</h3>
+                                <p class="text-xs text-slate-400 leading-relaxed mb-4">Unduh seluruh data status perangkat, metrik CPU/RAM, daftar interface, dan DHCP leases dalam format JSON terstruktur.</p>
+                            </div>
+                            <button onclick="downloadJsonSnapshot()" class="w-full py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-file-arrow-down"></i> Download telemetry.json
+                            </button>
+                        </div>
+
+                        <!-- Export CSV Report -->
+                        <div class="glass-panel rounded-xl p-5 flex flex-col justify-between">
+                            <div>
+                                <div class="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg mb-4">
+                                    <i class="fa-solid fa-file-csv"></i>
+                                </div>
+                                <h3 class="text-base font-bold text-white mb-1">Laporan Pengguna & Traffic (CSV)</h3>
+                                <p class="text-xs text-slate-400 leading-relaxed mb-4">Ekspor daftar user aktif Hotspot/PPPoE dan penggunaan bandwidth Simple Queues ke format CSV untuk dibuka di Excel.</p>
+                            </div>
+                            <button onclick="downloadCsvReport()" class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-table"></i> Download report-users.csv
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Preview of .rsc Script -->
+                    <div class="glass-panel rounded-xl p-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-bold text-white">Pratinjau Konfigurasi RouterOS (<span class="font-mono text-cyan-400">/export compact</span>)</h3>
+                            <button onclick="copyRscToClipboard()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-cyan-400 font-medium transition">
+                                <i class="fa-regular fa-copy mr-1"></i> Salin Skrip
+                            </button>
+                        </div>
+                        <pre id="rsc-preview-box" class="bg-slate-950 border border-slate-800 rounded-lg p-4 text-xs font-mono text-slate-300 overflow-x-auto max-h-80 leading-relaxed"></pre>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+    <script>
+        /**
+         * STATE MANAGEMENT (PURE ROUTEROS v7+ REST API)
+         */
+        const AppState = {
+            connected: false,
+            pollingRate: 2000,
+            timerId: null,
+            selectedDashboardIface: '',
+            conn: {
+                host: '192.168.88.1',
+                port: 80,
+                user: 'admin',
+                pass: '',
+                https: false
+            },
+            system: {
+                identity: 'RouterOS',
+                boardName: '--',
+                version: '--',
+                architecture: '--',
+                cpuLoad: 0,
+                cpuFreq: 0,
+                totalMemMb: 0,
+                usedMemMb: 0,
+                hddInfo: '--',
+                uptime: '--'
+            },
+            interfaces: [],
+            trafficHistory: {
+                rx: Array(30).fill(0),
+                tx: Array(30).fill(0)
+            },
+            ipAddresses: [],
+            dhcpLeases: [],
+            users: [],
+            activeSessions: [],
+            firewallRules: [],
+            queues: [],
+            logs: []
+        };
+
+        /**
+         * INITIALIZATION ON WINDOW LOAD
+         */
+        window.onload = function () {
+            loadSavedProfiles();
+            renderAllViews();
+            initTrafficChart();
+            window.addEventListener('resize', resizeTrafficChart);
+        };
+
+        /**
+         * REST API HELPER WRAPPER
+         */
+        function getRestConfig() {
+            const { host, port, user, pass, https } = AppState.conn;
+            const protocol = https ? 'https' : 'http';
+            const baseUrl = `${protocol}://${host}:${port}/rest`;
+            const headers = {
+                'Authorization': 'Basic ' + btoa(`${user}:${pass}`),
+                'Content-Type': 'application/json'
+            };
+            return { baseUrl, headers };
+        }
+
+        async function rosFetch(endpoint, method = 'GET', body = null, timeoutMs = 6000) {
+            const { baseUrl, headers } = getRestConfig();
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const options = {
+                    method,
+                    headers,
+                    signal: controller.signal
+                };
+                if (body !== null) {
+                    options.body = JSON.stringify(body);
+                }
+                const response = await fetch(`${baseUrl}${endpoint}`, options);
+                clearTimeout(timer);
+
+                if (!response.ok) {
+                    let errDetail = response.statusText;
+                    try {
+                        const errJson = await response.json();
+                        if (errJson.detail || errJson.message) errDetail = errJson.detail || errJson.message;
+                    } catch (_) {}
+                    throw new Error(`HTTP ${response.status}: ${errDetail}`);
+                }
+
+                if (response.status === 204) return null;
+                const text = await response.text();
+                return text ? JSON.parse(text) : null;
+            } catch (err) {
+                clearTimeout(timer);
+                throw err;
+            }
+        }
+
+        function ensureConnected() {
+            if (!AppState.connected) {
+                showToast('Belum terhubung ke MikroTik. Silakan hubungkan via panel Koneksi Router terlebih dahulu.', 'warning');
+                return false;
+            }
+            return true;
+        }
+
+        /**
+         * NAVIGATION & UI HELPERS
+         */
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        function toggleConnectionPanel() {
+            const panel = document.getElementById('connection-panel');
+            const chevron = document.getElementById('conn-chevron');
+            panel.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+
+        const TabTitles = {
+            'dashboard': ['Dashboard Overview', 'Pemantauan performa perangkat keras & trafik jaringan real-time via REST API'],
+            'interfaces': ['Interfaces & Traffic Monitor', 'Manajemen port fisik, bridge, wireless, dan statistik paket'],
+            'ip-dhcp': ['IP Addresses & DHCP Leases', 'Konfigurasi alamat IP interface dan alokasi DHCP klien'],
+            'hotspot-pppoe': ['Hotspot & PPPoE Users', 'Manajemen akun pelanggan, secret, dan sesi aktif'],
+            'firewall': ['Firewall & NAT Rules', 'Keamanan jaringan, filter paket, dan port forwarding'],
+            'queues': ['Simple Queues (Bandwidth)', 'Pengaturan limitasi kecepatan upload & download per target'],
+            'logs-terminal': ['System Logs & Terminal CLI', 'Catatan aktivitas sistem dan konsol perintah langsung ke RouterOS'],
+            'backup': ['Backup & Export Config', 'Unduh konfigurasi .rsc, snapshot JSON, dan laporan CSV']
+        };
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.nav-item').forEach(btn => {
+                if (btn.dataset.tab === tabId) {
+                    btn.className = 'nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all bg-cyan-500/15 text-cyan-400 border border-cyan-500/30';
+                } else {
+                    btn.className = 'nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-all';
+                }
+            });
+
+            document.querySelectorAll('.tab-content').forEach(sec => sec.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            if (TabTitles[tabId]) {
+                document.getElementById('page-title').textContent = TabTitles[tabId][0];
+                document.getElementById('page-subtitle').textContent = TabTitles[tabId][1];
+            }
+
+            if (tabId === 'dashboard') {
+                setTimeout(resizeTrafficChart, 50);
+            }
+            if (tabId === 'backup') {
+                updateRscPreview();
+            }
+
+            if (window.innerWidth < 1024) {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('-translate-x-full')) {
+                    toggleSidebar();
+                }
+            }
+        }
+
+        function switchSubTab(parent, subId) {
+            const subtabs = ['ip-list', 'dhcp-leases'];
+            subtabs.forEach(id => {
+                const el = document.getElementById(`subtab-${id}`);
+                const btn = document.getElementById(`subbtn-${id}`);
+                if (id === subId) {
+                    el.classList.remove('hidden');
+                    btn.className = 'px-4 py-2 rounded-lg text-xs font-semibold bg-cyan-600 text-white transition';
+                } else {
+                    el.classList.add('hidden');
+                    btn.className = 'px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition';
+                }
+            });
+        }
+
+        /**
+         * CUSTOM TOAST NOTIFICATION & MODAL
+         */
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                info: 'border-cyan-500/50 bg-slate-900 text-cyan-300',
+                success: 'border-emerald-500/50 bg-slate-900 text-emerald-300',
+                warning: 'border-amber-500/50 bg-slate-900 text-amber-300',
+                error: 'border-rose-500/50 bg-slate-900 text-rose-300'
+            };
+            const icons = {
+                info: 'fa-circle-info',
+                success: 'fa-circle-check',
+                warning: 'fa-triangle-exclamation',
+                error: 'fa-circle-xmark'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.innerHTML = `
+                <i class="fa-solid ${icons[type] || icons.info} text-sm"></i>
+                <span class="flex-1 text-slate-100">${message}</span>
+            `;
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function showConfirmModal(title, message, onConfirm) {
+            const modal = document.getElementById('custom-modal');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const close = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            document.getElementById('modal-cancel').onclick = close;
+            document.getElementById('modal-confirm').onclick = () => {
+                close();
+                if (onConfirm) onConfirm();
+            };
+        }
+
+        /**
+         * CONNECTION MANAGER (PURE ROUTEROS v7+ REST API)
+         */
+        function updateConnectionUIState(isConnected, hostText = '') {
+            AppState.connected = isConnected;
+            const badge = document.getElementById('sidebar-status-badge');
+            const meta = document.getElementById('sidebar-router-meta');
+            const welcomeBanner = document.getElementById('disconnected-welcome-banner');
+            const btnDisconnect = document.getElementById('btn-disconnect');
+            const btnSync = document.getElementById('btn-manual-sync');
+
+            if (isConnected) {
+                badge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot"></span> CONNECTED';
+                meta.textContent = `REST API • ${hostText}`;
+                welcomeBanner.classList.add('hidden');
+                btnDisconnect.classList.remove('hidden');
+                btnDisconnect.classList.add('flex');
+                btnSync.classList.remove('hidden');
+                btnSync.classList.add('flex');
+            } else {
+                badge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20';
+                badge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> DISCONNECTED';
+                meta.textContent = 'RouterOS v7+ REST API';
+                document.getElementById('sidebar-router-name').textContent = 'Belum Terhubung';
+                document.getElementById('sidebar-uptime').textContent = '--';
+                welcomeBanner.classList.remove('hidden');
+                btnDisconnect.classList.add('hidden');
+                btnDisconnect.classList.remove('flex');
+                btnSync.classList.add('hidden');
+                btnSync.classList.remove('flex');
+            }
+        }
+
+        function disconnectRouter() {
+            if (AppState.timerId) {
+                clearInterval(AppState.timerId);
+                AppState.timerId = null;
+            }
+            AppState.interfaces = [];
+            AppState.ipAddresses = [];
+            AppState.dhcpLeases = [];
+            AppState.users = [];
+            AppState.activeSessions = [];
+            AppState.firewallRules = [];
+            AppState.queues = [];
+            AppState.logs = [];
+            AppState.trafficHistory.rx = Array(30).fill(0);
+            AppState.trafficHistory.tx = Array(30).fill(0);
+            AppState.system = {
+                identity: 'RouterOS',
+                boardName: '--',
+                version: '--',
+                architecture: '--',
+                cpuLoad: 0,
+                cpuFreq: 0,
+                totalMemMb: 0,
+                usedMemMb: 0,
+                hddInfo: '--',
+                uptime: '--'
+            };
+
+            updateConnectionUIState(false);
+            renderAllViews();
+            drawTrafficChart();
+            showToast('Koneksi ke MikroTik diputuskan.', 'info');
+        }
+
+        async function connectRealRouter() {
+            const host = document.getElementById('conn-host').value.trim();
+            const port = document.getElementById('conn-port').value.trim() || '80';
+            const user = document.getElementById('conn-user').value.trim();
+            const pass = document.getElementById('conn-pass').value;
+            const https = document.getElementById('conn-https').checked;
+
+            if (!host || !user) {
+                showToast('Harap isi Host/IP Router dan Username terlebih dahulu.', 'warning');
+                return;
+            }
+
+            AppState.conn = { host, port, user, pass, https };
+            showToast(`Menghubungkan ke ${https ? 'https' : 'http'}://${host}:${port}/rest ...`, 'info');
+
+            try {
+                const sysResource = await rosFetch('/system/resource', 'GET', null, 6000);
+                let identityName = host;
+                try {
+                    const idRes = await rosFetch('/system/identity', 'GET', null, 3000);
+                    if (idRes && idRes.name) identityName = idRes.name;
+                } catch (_) {}
+
+                AppState.system.identity = identityName;
+                document.getElementById('sidebar-router-name').textContent = identityName;
+                document.getElementById('terminal-prompt').textContent = `[${user}@${identityName}] >`;
+
+                updateConnectionUIState(true, host);
+                applyRealSystemResource(sysResource);
+                await fetchAllRealRouterData();
+                startPolling();
+                showToast(`Berhasil terhubung ke MikroTik ${identityName} (${sysResource['board-name'] || host})!`, 'success');
+            } catch (err) {
+                console.error('REST API Connection Error:', err);
+                updateConnectionUIState(false);
+                showToast(`Gagal terhubung ke ${host}: ${err.message}. Periksa IP, Port, Kredensial, serta CORS/SSL RouterOS.`, 'error');
+            }
+        }
+
+        function applyRealSystemResource(res) {
+            if (!res) return;
+            AppState.system.boardName = res['board-name'] || 'MikroTik RouterOS';
+            AppState.system.version = res['version'] || '7.x';
+            AppState.system.architecture = `${res['architecture-name'] || 'arm'} (${res['cpu-count'] || 1} Core)`;
+            AppState.system.cpuLoad = parseInt(res['cpu-load'] || 0, 10);
+            AppState.system.cpuFreq = parseInt(res['cpu-frequency'] || 0, 10);
+            AppState.system.uptime = res['uptime'] || '--';
+
+            const totalMem = Math.round((parseInt(res['total-memory'] || 0, 10)) / (1024 * 1024));
+            const freeMem = Math.round((parseInt(res['free-memory'] || 0, 10)) / (1024 * 1024));
+            AppState.system.totalMemMb = totalMem || 0;
+            AppState.system.usedMemMb = Math.max(0, totalMem - freeMem);
+
+            const totalHdd = Math.round((parseInt(res['total-hdd-space'] || 0, 10)) / (1024 * 1024));
+            const freeHdd = Math.round((parseInt(res['free-hdd-space'] || 0, 10)) / (1024 * 1024));
+            AppState.system.hddInfo = totalHdd > 0 ? `${freeHdd} / ${totalHdd} MB Free` : '--';
+
+            document.getElementById('info-board').textContent = AppState.system.boardName;
+            document.getElementById('info-version').textContent = AppState.system.version;
+            document.getElementById('info-arch').textContent = AppState.system.architecture;
+            document.getElementById('info-health').textContent = AppState.system.hddInfo;
+            document.getElementById('sidebar-uptime').textContent = AppState.system.uptime;
+        }
+
+        async function refreshAllNow() {
+            if (!ensureConnected()) return;
+            await fetchAllRealRouterData();
+            showToast('Data router berhasil disinkronkan.', 'success');
+        }
+
+        async function fetchAllRealRouterData() {
+            if (!AppState.connected) return;
+
+            try {
+                // Fetch core endpoints concurrently
+                const [
+                    resSys,
+                    resIface,
+                    resIp,
+                    resDhcp,
+                    resHsUsers,
+                    resHsActive,
+                    resPppSecrets,
+                    resPppActive,
+                    resFwFilter,
+                    resFwNat,
+                    resQueues,
+                    resLogs
+                ] = await Promise.all([
+                    rosFetch('/system/resource').catch(() => null),
+                    rosFetch('/interface').catch(() => []),
+                    rosFetch('/ip/address').catch(() => []),
+                    rosFetch('/ip/dhcp-server/lease').catch(() => []),
+                    rosFetch('/ip/hotspot/user').catch(() => []),
+                    rosFetch('/ip/hotspot/active').catch(() => []),
+                    rosFetch('/ppp/secret').catch(() => []),
+                    rosFetch('/ppp/active').catch(() => []),
+                    rosFetch('/ip/firewall/filter').catch(() => []),
+                    rosFetch('/ip/firewall/nat').catch(() => []),
+                    rosFetch('/queue/simple').catch(() => []),
+                    rosFetch('/log').catch(() => [])
+                ]);
+
+                if (resSys) applyRealSystemResource(resSys);
+
+                // Map Interfaces
+                if (Array.isArray(resIface)) {
+                    AppState.interfaces = resIface.map((item, idx) => ({
+                        id: item['.id'] || String(idx),
+                        name: item['name'],
+                        type: item['type'] || 'ether',
+                        running: item['running'] === 'true' || item['running'] === true,
+                        disabled: item['disabled'] === 'true' || item['disabled'] === true,
+                        mtu: item['actual-mtu'] || item['mtu'] || 1500,
+                        mac: item['mac-address'] || '00:00:00:00:00:00',
+                        rxMbps: 0,
+                        txMbps: 0,
+                        rxBytes: parseInt(item['rx-byte'] || 0, 10),
+                        txBytes: parseInt(item['tx-byte'] || 0, 10)
+                    }));
+
+                    // Populate Dashboard Interface Dropdown
+                    const selectEl = document.getElementById('dashboard-iface-select');
+                    const prevVal = AppState.selectedDashboardIface || selectEl.value;
+                    selectEl.innerHTML = AppState.interfaces.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+                    if (AppState.interfaces.some(i => i.name === prevVal)) {
+                        selectEl.value = prevVal;
+                        AppState.selectedDashboardIface = prevVal;
+                    } else if (AppState.interfaces.length > 0) {
+                        AppState.selectedDashboardIface = AppState.interfaces[0].name;
+                        selectEl.value = AppState.selectedDashboardIface;
+                    }
+                }
+
+                // Monitor Live Traffic for selected interface via /rest/interface/monitor-traffic
+                if (AppState.selectedDashboardIface) {
+                    try {
+                        const mon = await rosFetch('/interface/monitor-traffic', 'POST', {
+                            interface: AppState.selectedDashboardIface,
+                            once: ''
+                        });
+                        const stat = Array.isArray(mon) ? mon[0] : mon;
+                        if (stat) {
+                            const rxMbps = +((parseInt(stat['rx-bits-per-second'] || 0, 10)) / 1000000).toFixed(2);
+                            const txMbps = +((parseInt(stat['tx-bits-per-second'] || 0, 10)) / 1000000).toFixed(2);
+
+                            const targetIface = AppState.interfaces.find(i => i.name === AppState.selectedDashboardIface);
+                            if (targetIface) {
+                                targetIface.rxMbps = rxMbps;
+                                targetIface.txMbps = txMbps;
+                            }
+
+                            AppState.trafficHistory.rx.push(rxMbps);
+                            AppState.trafficHistory.rx.shift();
+                            AppState.trafficHistory.tx.push(txMbps);
+                            AppState.trafficHistory.tx.shift();
+                        }
+                    } catch (e) {
+                        console.warn('Monitor traffic warning:', e.message);
+                    }
+                }
+
+                // Map IP Addresses
+                if (Array.isArray(resIp)) {
+                    AppState.ipAddresses = resIp.map((item, idx) => ({
+                        id: item['.id'] || String(idx),
+                        address: item['address'] || '',
+                        network: item['network'] || '',
+                        interface: item['interface'] || '',
+                        comment: item['comment'] || '',
+                        disabled: item['disabled'] === 'true' || item['disabled'] === true
+                    }));
+                }
+
+                // Map DHCP Leases
+                if (Array.isArray(resDhcp)) {
+                    AppState.dhcpLeases = resDhcp.map((item, idx) => ({
+                        id: item['.id'] || String(idx),
+                        ip: item['address'] || '',
+                        mac: item['mac-address'] || '',
+                        hostname: item['host-name'] || '-',
+                        server: item['server'] || 'dhcp',
+                        status: item['status'] || 'bound',
+                        dynamic: item['dynamic'] === 'true' || item['dynamic'] === true,
+                        expires: item['expires-after'] || 'static'
+                    }));
+                }
+
+                // Map Registered Users (Hotspot + PPPoE)
+                const mappedHsUsers = Array.isArray(resHsUsers) ? resHsUsers.map(u => ({
+                    id: u['.id'],
+                    service: 'Hotspot',
+                    username: u['name'] || '',
+                    profile: u['profile'] || 'default',
+                    disabled: u['disabled'] === 'true' || u['disabled'] === true
+                })) : [];
+
+                const mappedPppSecrets = Array.isArray(resPppSecrets) ? resPppSecrets.map(u => ({
+                    id: u['.id'],
+                    service: 'PPPoE',
+                    username: u['name'] || '',
+                    profile: u['profile'] || 'default',
+                    disabled: u['disabled'] === 'true' || u['disabled'] === true
+                })) : [];
+                AppState.users = [...mappedHsUsers, ...mappedPppSecrets];
+
+                // Map Active Sessions (Hotspot + PPPoE)
+                const mappedHsActive = Array.isArray(resHsActive) ? resHsActive.map(s => ({
+                    id: s['.id'],
+                    service: 'Hotspot',
+                    username: s['user'] || '',
+                    ip: s['address'] || '',
+                    mac: s['mac-address'] || '-',
+                    uptime: s['uptime'] || '0s',
+                    rxMb: +((parseInt(s['bytes-in'] || 0, 10)) / (1024 * 1024)).toFixed(1),
+                    txMb: +((parseInt(s['bytes-out'] || 0, 10)) / (1024 * 1024)).toFixed(1)
+                })) : [];
+
+                const mappedPppActive = Array.isArray(resPppActive) ? resPppActive.map(s => ({
+                    id: s['.id'],
+                    service: 'PPPoE',
+                    username: s['name'] || '',
+                    ip: s['address'] || '',
+                    mac: s['caller-id'] || '-',
+                    uptime: s['uptime'] || '0s',
+                    rxMb: 0,
+                    txMb: 0
+                })) : [];
+                AppState.activeSessions = [...mappedHsActive, ...mappedPppActive];
+
+                // Map Firewall Filter & NAT Rules
+                const mappedFilter = Array.isArray(resFwFilter) ? resFwFilter.map(r => ({
+                    id: r['.id'],
+                    table: 'filter',
+                    chain: r['chain'] || 'input',
+                    action: r['action'] || 'accept',
+                    proto: r['protocol'] ? `${r['protocol']}${r['dst-port'] ? ':' + r['dst-port'] : ''}` : 'all',
+                    address: r['src-address'] || r['dst-address'] || '0.0.0.0/0',
+                    packets: parseInt(r['packets'] || 0, 10),
+                    bytes: parseInt(r['bytes'] || 0, 10),
+                    comment: r['comment'] || '',
+                    disabled: r['disabled'] === 'true' || r['disabled'] === true
+                })) : [];
+
+                const mappedNat = Array.isArray(resFwNat) ? resFwNat.map(r => ({
+                    id: r['.id'],
+                    table: 'nat',
+                    chain: r['chain'] || 'srcnat',
+                    action: r['action'] || 'masquerade',
+                    proto: r['protocol'] ? `${r['protocol']}${r['dst-port'] ? ':' + r['dst-port'] : ''}` : 'all',
+                    address: r['src-address'] || r['to-addresses'] || '0.0.0.0/0',
+                    packets: parseInt(r['packets'] || 0, 10),
+                    bytes: parseInt(r['bytes'] || 0, 10),
+                    comment: r['comment'] || '',
+                    disabled: r['disabled'] === 'true' || r['disabled'] === true
+                })) : [];
+                AppState.firewallRules = [...mappedFilter, ...mappedNat];
+
+                // Map Simple Queues
+                if (Array.isArray(resQueues)) {
+                    AppState.queues = resQueues.map(q => {
+                        const limits = (q['max-limit'] || '0/0').split('/');
+                        const rates = (q['rate'] || '0/0').split('/');
+                        const parseRateMbps = (val) => {
+                            if (!val) return 0;
+                            if (val.endsWith('M')) return parseFloat(val);
+                            if (val.endsWith('k')) return +(parseFloat(val) / 1000).toFixed(2);
+                            return +(parseFloat(val) / 1000000).toFixed(2);
+                        };
+                        return {
+                            id: q['.id'],
+                            name: q['name'] || '',
+                            target: q['target'] || '',
+                            maxUp: parseRateMbps(limits[0]),
+                            maxDown: parseRateMbps(limits[1]),
+                            curUp: parseRateMbps(rates[0]),
+                            curDown: parseRateMbps(rates[1])
+                        };
+                    });
+                }
+
+                // Map Logs (Latest 60)
+                if (Array.isArray(resLogs)) {
+                    AppState.logs = resLogs.slice(-60).reverse().map(l => ({
+                        time: l['time'] || '',
+                        topic: l['topics'] || 'info',
+                        msg: l['message'] || ''
+                    }));
+                }
+
+                // Populate Interface Select in IP Address Form
+                const ipIfaceSel = document.getElementById('new-ip-iface');
+                if (ipIfaceSel && AppState.interfaces.length > 0) {
+                    const curr = ipIfaceSel.value;
+                    ipIfaceSel.innerHTML = AppState.interfaces.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+                    if (AppState.interfaces.some(i => i.name === curr)) ipIfaceSel.value = curr;
+                }
+
+                renderAllViews();
+                drawTrafficChart();
+            } catch (e) {
+                console.warn('Polling REST API warning:', e);
+            }
+        }
+
+        /**
+         * LOCALSTORAGE ROUTER PROFILES
+         */
+        function saveRouterProfile() {
+            const host = document.getElementById('conn-host').value.trim();
+            const port = document.getElementById('conn-port').value.trim() || '80';
+            const user = document.getElementById('conn-user').value.trim();
+            const https = document.getElementById('conn-https').checked;
+            if (!host) return;
+
+            let profiles = JSON.parse(localStorage.getItem('webbox_profiles') || '[]');
+            profiles = profiles.filter(p => p.host !== host);
+            profiles.unshift({ host, port, user, https });
+            profiles = profiles.slice(0, 5);
+            localStorage.setItem('webbox_profiles', JSON.stringify(profiles));
+            loadSavedProfiles();
+            showToast(`Profil router ${host} disimpan ke browser.`, 'success');
+        }
+
+        function loadSavedProfiles() {
+            const profiles = JSON.parse(localStorage.getItem('webbox_profiles') || '[]');
+            const container = document.getElementById('saved-profiles-list');
+            if (!profiles.length) {
+                container.innerHTML = '';
+                return;
+            }
+            container.innerHTML = `<span class="text-slate-500">Tersimpan:</span>` + profiles.map(p => `
+                <button onclick="applyProfile('${p.host}', '${p.port}', '${p.user}', ${p.https})" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 font-mono text-[10px] border border-slate-700">
+                    ${p.user}@${p.host}
+                </button>
+            `).join('');
+        }
+
+        function applyProfile(host, port, user, https) {
+            document.getElementById('conn-host').value = host;
+            document.getElementById('conn-port').value = port;
+            document.getElementById('conn-user').value = user;
+            document.getElementById('conn-https').checked = https;
+            showToast(`Profil ${host} dimuat ke form koneksi.`, 'info');
+        }
+
+        /**
+         * AUTO-POLLING CONTROL
+         */
+        function updatePollingRate() {
+            AppState.pollingRate = parseInt(document.getElementById('refresh-interval').value, 10);
+            startPolling();
+        }
+
+        function startPolling() {
+            if (AppState.timerId) {
+                clearInterval(AppState.timerId);
+                AppState.timerId = null;
+            }
+            if (!AppState.connected || AppState.pollingRate <= 0) return;
+
+            AppState.timerId = setInterval(() => {
+                if (AppState.connected) {
+                    fetchAllRealRouterData();
+                }
+            }, AppState.pollingRate);
+        }
+
+        /**
+         * HTML5 CANVAS LIVE TRAFFIC CHART
+         */
+        let chartCanvas, chartCtx;
+
+        function initTrafficChart() {
+            chartCanvas = document.getElementById('trafficChart');
+            chartCtx = chartCanvas.getContext('2d');
+            resizeTrafficChart();
+        }
+
+        function resizeTrafficChart() {
+            if (!chartCanvas) return;
+            const parent = chartCanvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            chartCanvas.width = parent.clientWidth * dpr;
+            chartCanvas.height = parent.clientHeight * dpr;
+            chartCtx.scale(dpr, dpr);
+            drawTrafficChart();
+        }
+
+        function changeDashboardInterface(ifaceName) {
+            AppState.selectedDashboardIface = ifaceName;
+            AppState.trafficHistory.rx = Array(30).fill(0);
+            AppState.trafficHistory.tx = Array(30).fill(0);
+            drawTrafficChart();
+            if (AppState.connected) fetchAllRealRouterData();
+        }
+
+        function drawTrafficChart() {
+            if (!chartCtx || !chartCanvas) return;
+            const width = chartCanvas.parentElement.clientWidth;
+            const height = chartCanvas.parentElement.clientHeight;
+            if (width === 0 || height === 0) return;
+
+            chartCtx.clearRect(0, 0, width, height);
+
+            const rxData = AppState.trafficHistory.rx;
+            const txData = AppState.trafficHistory.tx;
+            const maxVal = Math.max(10, ...rxData, ...txData) * 1.2;
+
+            const padLeft = 44;
+            const padRight = 12;
+            const padTop = 14;
+            const padBottom = 22;
+            const plotW = width - padLeft - padRight;
+            const plotH = height - padTop - padBottom;
+
+            chartCtx.strokeStyle = 'rgba(51, 65, 85, 0.45)';
+            chartCtx.lineWidth = 1;
+            chartCtx.fillStyle = '#94a3b8';
+            chartCtx.font = '10px "JetBrains Mono", monospace';
+            chartCtx.textAlign = 'right';
+
+            const steps = 4;
+            for (let i = 0; i <= steps; i++) {
+                const y = padTop + (plotH / steps) * i;
+                const val = ((maxVal / steps) * (steps - i)).toFixed(0);
+                chartCtx.beginPath();
+                chartCtx.moveTo(padLeft, y);
+                chartCtx.lineTo(width - padRight, y);
+                chartCtx.stroke();
+                chartCtx.fillText(`${val}M`, padLeft - 6, y + 3);
+            }
+
+            const drawSeries = (data, strokeColor, fillTopColor) => {
+                const stepX = plotW / (data.length - 1);
+                chartCtx.beginPath();
+                data.forEach((val, idx) => {
+                    const x = padLeft + idx * stepX;
+                    const y = padTop + plotH - (val / maxVal) * plotH;
+                    if (idx === 0) chartCtx.moveTo(x, y);
+                    else chartCtx.lineTo(x, y);
+                });
+
+                chartCtx.strokeStyle = strokeColor;
+                chartCtx.lineWidth = 2.2;
+                chartCtx.stroke();
+
+                chartCtx.lineTo(padLeft + plotW, padTop + plotH);
+                chartCtx.lineTo(padLeft, padTop + plotH);
+                chartCtx.closePath();
+                const grad = chartCtx.createLinearGradient(0, padTop, 0, padTop + plotH);
+                grad.addColorStop(0, fillTopColor);
+                grad.addColorStop(1, 'rgba(15, 23, 42, 0.0)');
+                chartCtx.fillStyle = grad;
+                chartCtx.fill();
+            };
+
+            drawSeries(rxData, '#22d3ee', 'rgba(34, 211, 238, 0.25)');
+            drawSeries(txData, '#34d399', 'rgba(52, 211, 153, 0.20)');
+        }
+
+        /**
+         * RENDERING FUNCTIONS FOR ALL SECTIONS
+         */
+        function renderAllViews() {
+            updateDashboardMetrics();
+            renderDashboardInterfaces();
+            renderInterfacesTable();
+            renderIpTable();
+            renderDhcpTable();
+            renderHotspotPppoeTables();
+            renderFirewallTable();
+            renderQueuesTable();
+            renderLogs();
+        }
+
+        function updateDashboardMetrics() {
+            const { cpuLoad, cpuFreq, usedMemMb, totalMemMb } = AppState.system;
+            const memPct = totalMemMb > 0 ? Math.round((usedMemMb / totalMemMb) * 100) : 0;
+
+            document.getElementById('metric-cpu').textContent = `${cpuLoad}%`;
+            document.getElementById('metric-cpu-freq').textContent = cpuFreq ? `${cpuFreq} MHz` : '-- MHz';
+            document.getElementById('bar-cpu').style.width = `${cpuLoad}%`;
+
+            document.getElementById('metric-mem-pct').textContent = `${memPct}%`;
+            document.getElementById('metric-mem-mb').textContent = `${usedMemMb} / ${totalMemMb} MB`;
+            document.getElementById('bar-mem').style.width = `${memPct}%`;
+
+            const hotspotCount = AppState.activeSessions.filter(s => s.service === 'Hotspot').length;
+            const pppoeCount = AppState.activeSessions.filter(s => s.service === 'PPPoE').length;
+            document.getElementById('metric-users').textContent = hotspotCount + pppoeCount;
+            document.getElementById('metric-users-detail').textContent = `${hotspotCount} Hotspot • ${pppoeCount} PPPoE`;
+            document.getElementById('metric-dhcp-count').textContent = `${AppState.dhcpLeases.length} Host`;
+
+            const activeIface = AppState.interfaces.find(i => i.name === AppState.selectedDashboardIface) || AppState.interfaces[0];
+            document.getElementById('metric-rx').textContent = activeIface ? `${activeIface.rxMbps.toFixed(2)} Mbps` : '0.0 Mbps';
+            document.getElementById('metric-tx').textContent = activeIface ? `${activeIface.txMbps.toFixed(2)} Mbps` : '0.0 Mbps';
+        }
+
+        function renderDashboardInterfaces() {
+            const container = document.getElementById('dashboard-iface-list');
+            if (!AppState.interfaces.length) {
+                container.innerHTML = `<div class="text-xs text-slate-500 text-center py-8">${AppState.connected ? 'Tidak ada data interface.' : 'Menunggu koneksi router...'}</div>`;
+                return;
+            }
+            container.innerHTML = AppState.interfaces.map(iface => {
+                const statusColor = iface.disabled ? 'bg-slate-600' : (iface.running ? 'bg-emerald-400' : 'bg-amber-400');
+                const statusText = iface.disabled ? 'Disabled' : (iface.running ? 'Running' : 'No Link');
+                return `
+                    <div class="p-3 rounded-lg bg-slate-900/80 border border-slate-800/80 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-2.5 h-2.5 rounded-full ${statusColor} shrink-0"></span>
+                            <div class="truncate">
+                                <div class="text-xs font-semibold text-white font-mono truncate">${iface.name}</div>
+                                <div class="text-[11px] text-slate-400 font-mono">${statusText} • ${iface.type}</div>
+                            </div>
+                        </div>
+                        <div class="text-right font-mono text-[11px] shrink-0">
+                            <div class="text-cyan-400">↓ ${formatBytes(iface.rxBytes)}</div>
+                            <div class="text-emerald-400">↑ ${formatBytes(iface.txBytes)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function renderInterfacesTable() {
+            const tbody = document.getElementById('interfaces-table-body');
+            if (!AppState.interfaces.length) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500 font-sans">Belum ada data interface. Hubungkan ke router terlebih dahulu.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = AppState.interfaces.map(iface => `
+                <tr class="hover:bg-slate-800/40 transition ${iface.disabled ? 'opacity-50' : ''}">
+                    <td class="py-3 px-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${iface.disabled ? 'bg-slate-800 text-slate-400' : (iface.running ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400')}">
+                            ${iface.disabled ? 'X - DISABLED' : (iface.running ? 'R - RUNNING' : 'DOWN')}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 font-semibold text-white">${iface.name}</td>
+                    <td class="py-3 px-3 text-slate-400">${iface.type}</td>
+                    <td class="py-3 px-3 text-slate-300">${iface.mtu}</td>
+                    <td class="py-3 px-3 text-slate-400">${iface.mac}</td>
+                    <td class="py-3 px-3 text-right text-cyan-400">${iface.rxMbps.toFixed(2)} Mbps</td>
+                    <td class="py-3 px-3 text-right text-emerald-400">${iface.txMbps.toFixed(2)} Mbps</td>
+                    <td class="py-3 px-3 text-right text-slate-400">${formatBytes(iface.rxBytes)} / ${formatBytes(iface.txBytes)}</td>
+                    <td class="py-3 px-3 text-center">
+                        <button onclick="toggleInterface('${iface.id}', ${!iface.disabled})" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
+                            ${iface.disabled ? 'Enable' : 'Disable'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleInterface(id, disableState) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/interface/${encodeURIComponent(id)}`, 'PATCH', {
+                    disabled: disableState ? 'yes' : 'no'
+                });
+                showToast(`Status interface berhasil diperbarui.`, 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal mengubah status interface: ${err.message}`, 'error');
+            }
+        }
+
+        async function resetInterfaceCounters() {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch('/interface/reset-counters-all', 'POST', {});
+                showToast('Counter seluruh interface berhasil di-reset.', 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal reset counters: ${err.message}`, 'error');
+            }
+        }
+
+        /**
+         * IP ADDRESSES & DHCP LEASES ACTIONS (REAL REST API)
+         */
+        function renderIpTable() {
+            const tbody = document.getElementById('ip-table-body');
+            if (!AppState.ipAddresses.length) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 font-sans">Tidak ada data IP Address.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = AppState.ipAddresses.map(ip => `
+                <tr class="hover:bg-slate-800/40 transition ${ip.disabled ? 'opacity-50' : ''}">
+                    <td class="py-3 px-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${ip.disabled ? 'bg-slate-800 text-slate-400' : 'bg-cyan-500/15 text-cyan-400'}">
+                            ${ip.disabled ? 'X' : 'ACTIVE'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 font-semibold text-white">${ip.address}</td>
+                    <td class="py-3 px-3 text-slate-400">${ip.network}</td>
+                    <td class="py-3 px-3 text-cyan-300">${ip.interface}</td>
+                    <td class="py-3 px-3 text-slate-400 font-sans">${ip.comment}</td>
+                    <td class="py-3 px-3 text-right space-x-1">
+                        <button onclick="toggleIpAddress('${ip.id}', ${!ip.disabled})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">${ip.disabled ? 'Enable' : 'Disable'}</button>
+                        <button onclick="deleteIpAddress('${ip.id}')" class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function addIpAddress() {
+            if (!ensureConnected()) return;
+            const addr = document.getElementById('new-ip-addr').value.trim();
+            const iface = document.getElementById('new-ip-iface').value;
+            const comment = document.getElementById('new-ip-comment').value.trim();
+            if (!addr || !addr.includes('/')) {
+                showToast('Format IP Address harus menyertakan prefix CIDR (contoh: 10.10.10.1/24).', 'warning');
+                return;
+            }
+            try {
+                await rosFetch('/ip/address', 'PUT', {
+                    address: addr,
+                    interface: iface,
+                    comment: comment
+                });
+                document.getElementById('new-ip-addr').value = '';
+                document.getElementById('new-ip-comment').value = '';
+                showToast(`IP Address ${addr} berhasil ditambahkan ke ${iface}.`, 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menambah IP Address: ${err.message}`, 'error');
+            }
+        }
+
+        async function toggleIpAddress(id, disableState) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/ip/address/${encodeURIComponent(id)}`, 'PATCH', {
+                    disabled: disableState ? 'yes' : 'no'
+                });
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal mengubah status IP: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteIpAddress(id) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/ip/address/${encodeURIComponent(id)}`, 'DELETE');
+                showToast('IP Address berhasil dihapus dari router.', 'info');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menghapus IP: ${err.message}`, 'error');
+            }
+        }
+
+        function renderDhcpTable() {
+            const query = (document.getElementById('dhcp-search')?.value || '').toLowerCase();
+            const filtered = AppState.dhcpLeases.filter(l =>
+                l.ip.toLowerCase().includes(query) ||
+                l.mac.toLowerCase().includes(query) ||
+                l.hostname.toLowerCase().includes(query)
+            );
+            const tbody = document.getElementById('dhcp-table-body');
+            if (!filtered.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 font-sans">Tidak ada data DHCP Leases.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = filtered.map(lease => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="py-3 px-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${lease.status === 'bound' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'}">
+                            ${lease.dynamic ? 'D' : 'S'} • ${lease.status.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 font-semibold text-white">${lease.ip}</td>
+                    <td class="py-3 px-3 text-slate-300">${lease.mac}</td>
+                    <td class="py-3 px-3 text-cyan-300">${lease.hostname}</td>
+                    <td class="py-3 px-3 text-slate-400">${lease.server}</td>
+                    <td class="py-3 px-3 text-slate-400">${lease.expires}</td>
+                    <td class="py-3 px-3 text-right space-x-1">
+                        ${lease.dynamic ? `<button onclick="makeDhcpStatic('${lease.id}')" class="px-2 py-1 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300">Make Static</button>` : ''}
+                        <button onclick="deleteDhcpLease('${lease.id}')" class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function makeDhcpStatic(id) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch('/ip/dhcp-server/lease/make-static', 'POST', { '.id': id });
+                showToast('DHCP Lease berhasil dijadikan Static.', 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menjadikan Static: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteDhcpLease(id) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/ip/dhcp-server/lease/${encodeURIComponent(id)}`, 'DELETE');
+                showToast('DHCP Lease dihapus.', 'info');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menghapus lease: ${err.message}`, 'error');
+            }
+        }
+
+        /**
+         * HOTSPOT & PPPOE USERS MANAGEMENT (REAL REST API)
+         */
+        function renderHotspotPppoeTables() {
+            document.getElementById('active-session-badge').textContent = `${AppState.activeSessions.length} Online`;
+            const activeBody = document.getElementById('active-sessions-body');
+            if (!AppState.activeSessions.length) {
+                activeBody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 font-sans">Tidak ada sesi Hotspot atau PPPoE yang aktif.</td></tr>`;
+            } else {
+                activeBody.innerHTML = AppState.activeSessions.map(s => `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-3 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.service === 'Hotspot' ? 'bg-amber-500/15 text-amber-400' : 'bg-purple-500/15 text-purple-400'}">
+                                ${s.service}
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 font-semibold text-white">${s.username}</td>
+                        <td class="py-3 px-3 text-cyan-300">${s.ip}</td>
+                        <td class="py-3 px-3 text-slate-400">${s.mac}</td>
+                        <td class="py-3 px-3 text-slate-300">${s.uptime}</td>
+                        <td class="py-3 px-3 text-slate-300"><span class="text-cyan-400">${s.rxMb} MB</span> / <span class="text-emerald-400">${s.txMb} MB</span></td>
+                        <td class="py-3 px-3 text-right">
+                            <button onclick="kickActiveSession('${s.id}', '${s.service}')" class="px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/30 text-rose-400 font-semibold">
+                                <i class="fa-solid fa-plug-circle-xmark mr-1"></i> Kick
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            const regBody = document.getElementById('registered-users-body');
+            if (!AppState.users.length) {
+                regBody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 font-sans">Tidak ada akun terdaftar.</td></tr>`;
+            } else {
+                regBody.innerHTML = AppState.users.map(u => `
+                    <tr class="hover:bg-slate-800/40 transition ${u.disabled ? 'opacity-50' : ''}">
+                        <td class="py-3 px-3 text-slate-300">${u.service}</td>
+                        <td class="py-3 px-3 font-semibold text-white">${u.username}</td>
+                        <td class="py-3 px-3 text-slate-500">••••••</td>
+                        <td class="py-3 px-3 text-cyan-400">${u.profile}</td>
+                        <td class="py-3 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.disabled ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/15 text-emerald-400'}">
+                                ${u.disabled ? 'DISABLED' : 'ENABLED'}
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-right">
+                            <button onclick="deleteRegisteredUser('${u.id}', '${u.service}')" class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function addHotspotPppoeUser() {
+            if (!ensureConnected()) return;
+            const service = document.getElementById('new-user-service').value;
+            const username = document.getElementById('new-user-name').value.trim();
+            const password = document.getElementById('new-user-pass').value.trim();
+            const profile = document.getElementById('new-user-profile').value;
+
+            if (!username || !password) {
+                showToast('Username dan Password wajib diisi.', 'warning');
+                return;
+            }
+
+            try {
+                if (service === 'Hotspot') {
+                    await rosFetch('/ip/hotspot/user', 'PUT', {
+                        name: username,
+                        password: password,
+                        profile: profile
+                    });
+                } else {
+                    await rosFetch('/ppp/secret', 'PUT', {
+                        name: username,
+                        password: password,
+                        service: 'pppoe',
+                        profile: profile
+                    });
+                }
+                document.getElementById('new-user-name').value = '';
+                document.getElementById('new-user-pass').value = '';
+                showToast(`Akun ${service} "${username}" berhasil ditambahkan ke router.`, 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal membuat akun ${service}: ${err.message}`, 'error');
+            }
+        }
+
+        async function kickActiveSession(id, service) {
+            if (!ensureConnected()) return;
+            try {
+                const path = service === 'Hotspot' ? `/ip/hotspot/active/${encodeURIComponent(id)}` : `/ppp/active/${encodeURIComponent(id)}`;
+                await rosFetch(path, 'DELETE');
+                showToast(`Sesi aktif ${service} berhasil diputus.`, 'warning');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal memutus sesi: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteRegisteredUser(id, service) {
+            if (!ensureConnected()) return;
+            try {
+                const path = service === 'Hotspot' ? `/ip/hotspot/user/${encodeURIComponent(id)}` : `/ppp/secret/${encodeURIComponent(id)}`;
+                await rosFetch(path, 'DELETE');
+                showToast(`Akun ${service} dihapus dari router.`, 'info');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menghapus akun: ${err.message}`, 'error');
+            }
+        }
+
+        /**
+         * FIREWALL & NAT RULES MANAGEMENT (REAL REST API)
+         */
+        function renderFirewallTable() {
+            const tbody = document.getElementById('firewall-table-body');
+            if (!AppState.firewallRules.length) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500 font-sans">Tidak ada data Firewall / NAT rules.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = AppState.firewallRules.map((rule, idx) => `
+                <tr class="hover:bg-slate-800/40 transition ${rule.disabled ? 'opacity-50' : ''}">
+                    <td class="py-3 px-2 text-slate-500">${idx}</td>
+                    <td class="py-3 px-2">
+                        <div class="flex items-center gap-1">
+                            <button onclick="moveFirewallRule(${idx}, -1)" class="p-1 hover:text-cyan-400 text-slate-400" title="Naikkan Urutan"><i class="fa-solid fa-arrow-up"></i></button>
+                            <button onclick="moveFirewallRule(${idx}, 1)" class="p-1 hover:text-cyan-400 text-slate-400" title="Turunkan Urutan"><i class="fa-solid fa-arrow-down"></i></button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${rule.table === 'nat' ? 'bg-purple-500/15 text-purple-300' : 'bg-cyan-500/15 text-cyan-300'}">
+                            ${rule.table.toUpperCase()}: ${rule.chain}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 font-bold ${rule.action === 'drop' ? 'text-rose-400' : 'text-emerald-400'}">${rule.action}</td>
+                    <td class="py-3 px-3 text-slate-300">${rule.proto}</td>
+                    <td class="py-3 px-3 text-slate-300">${rule.address}</td>
+                    <td class="py-3 px-3 text-right text-slate-400">${rule.packets.toLocaleString()} / ${formatBytes(rule.bytes)}</td>
+                    <td class="py-3 px-3 text-slate-400 font-sans">${rule.comment}</td>
+                    <td class="py-3 px-3 text-right space-x-1">
+                        <button onclick="toggleFirewallRule('${rule.id}', '${rule.table}', ${!rule.disabled})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">${rule.disabled ? 'Enable' : 'Disable'}</button>
+                        <button onclick="deleteFirewallRule('${rule.id}', '${rule.table}')" class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function addFirewallRule() {
+            if (!ensureConnected()) return;
+            const chainVal = document.getElementById('fw-chain').value.split(':');
+            const protoRaw = document.getElementById('fw-proto').value.trim();
+            const address = document.getElementById('fw-addr').value.trim();
+            const action = document.getElementById('fw-action').value;
+            const comment = document.getElementById('fw-comment').value.trim();
+
+            const payload = {
+                chain: chainVal[1],
+                action: action
+            };
+            if (comment) payload.comment = comment;
+            if (address) payload['src-address'] = address;
+            if (protoRaw) {
+                const parts = protoRaw.split(':');
+                payload.protocol = parts[0];
+                if (parts[1]) payload['dst-port'] = parts[1];
+            }
+
+            try {
+                await rosFetch(`/ip/firewall/${chainVal[0]}`, 'PUT', payload);
+                document.getElementById('fw-proto').value = '';
+                document.getElementById('fw-addr').value = '';
+                document.getElementById('fw-comment').value = '';
+                showToast(`Firewall rule (${chainVal[1]} -> ${action}) ditambahkan.`, 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menambah firewall rule: ${err.message}`, 'error');
+            }
+        }
+
+        async function moveFirewallRule(index, dir) {
+            if (!ensureConnected()) return;
+            const targetIdx = index + dir;
+            if (targetIdx < 0 || targetIdx >= AppState.firewallRules.length) return;
+            const current = AppState.firewallRules[index];
+            const destination = AppState.firewallRules[targetIdx];
+            if (current.table !== destination.table) {
+                showToast('Hanya dapat memindahkan urutan dalam tabel yang sama (Filter atau NAT).', 'warning');
+                return;
+            }
+            try {
+                await rosFetch(`/ip/firewall/${current.table}/move`, 'POST', {
+                    numbers: current.id,
+                    destination: destination.id
+                });
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal memindahkan urutan rule: ${err.message}`, 'error');
+            }
+        }
+
+        async function toggleFirewallRule(id, table, disableState) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/ip/firewall/${table}/${encodeURIComponent(id)}`, 'PATCH', {
+                    disabled: disableState ? 'yes' : 'no'
+                });
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal mengubah status rule: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteFirewallRule(id, table) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/ip/firewall/${table}/${encodeURIComponent(id)}`, 'DELETE');
+                showToast('Firewall rule dihapus.', 'info');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menghapus rule: ${err.message}`, 'error');
+            }
+        }
+
+        /**
+         * SIMPLE QUEUES MANAGEMENT (REAL REST API)
+         */
+        function renderQueuesTable() {
+            const tbody = document.getElementById('queues-table-body');
+            if (!AppState.queues.length) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500 font-sans">Tidak ada data Simple Queues.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = AppState.queues.map(q => {
+                const pct = q.maxDown > 0 ? Math.min(100, Math.round((q.curDown / q.maxDown) * 100)) : 0;
+                const barColor = pct > 85 ? 'bg-rose-500' : (pct > 60 ? 'bg-amber-400' : 'bg-emerald-400');
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-3 px-3 font-semibold text-white">${q.name}</td>
+                        <td class="py-3 px-3 text-cyan-300">${q.target}</td>
+                        <td class="py-3 px-3 text-slate-300">${q.maxUp}M / ${q.maxDown}M</td>
+                        <td class="py-3 px-3 text-slate-200"><span class="text-emerald-400">${q.curUp.toFixed(2)}M</span> / <span class="text-cyan-400">${q.curDown.toFixed(2)}M</span></td>
+                        <td class="py-3 px-3">
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1 bg-slate-800 h-2 rounded-full overflow-hidden">
+                                    <div class="${barColor} h-full rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-400 w-8 text-right">${pct}%</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-3 text-right">
+                            <button onclick="deleteSimpleQueue('${q.id}')" class="px-2 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function addSimpleQueue() {
+            if (!ensureConnected()) return;
+            const name = document.getElementById('q-name').value.trim();
+            const target = document.getElementById('q-target').value.trim();
+            const maxUp = document.getElementById('q-up').value.trim() || '10M';
+            const maxDown = document.getElementById('q-down').value.trim() || '20M';
+
+            if (!name || !target) {
+                showToast('Nama Queue dan Target IP wajib diisi.', 'warning');
+                return;
+            }
+
+            const upStr = /[kMG]$/i.test(maxUp) ? maxUp : `${maxUp}M`;
+            const downStr = /[kMG]$/i.test(maxDown) ? maxDown : `${maxDown}M`;
+
+            try {
+                await rosFetch('/queue/simple', 'PUT', {
+                    name: name,
+                    target: target,
+                    'max-limit': `${upStr}/${downStr}`
+                });
+                document.getElementById('q-name').value = '';
+                document.getElementById('q-target').value = '';
+                showToast(`Simple Queue "${name}" (${upStr}/${downStr}) diterapkan.`, 'success');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal membuat Simple Queue: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteSimpleQueue(id) {
+            if (!ensureConnected()) return;
+            try {
+                await rosFetch(`/queue/simple/${encodeURIComponent(id)}`, 'DELETE');
+                showToast('Simple Queue dihapus.', 'info');
+                await fetchAllRealRouterData();
+            } catch (err) {
+                showToast(`Gagal menghapus Simple Queue: ${err.message}`, 'error');
+            }
+        }
+
+        /**
+         * SYSTEM LOGS & LIVE ROUTEROS REST API TERMINAL CLI
+         */
+        function renderLogs() {
+            const filter = document.getElementById('log-topic-filter').value;
+            const filtered = filter === 'all' ? AppState.logs : AppState.logs.filter(l => l.topic.includes(filter));
+            const container = document.getElementById('logs-container');
+            if (!filtered.length) {
+                container.innerHTML = `<div class="text-slate-500 text-center py-6">${AppState.connected ? 'Tidak ada entri log untuk filter ini.' : 'Menunggu koneksi router untuk memuat /rest/log...'}</div>`;
+                return;
+            }
+            container.innerHTML = filtered.map(l => {
+                let badgeColor = 'text-cyan-400';
+                if (l.topic.includes('warning')) badgeColor = 'text-amber-400';
+                if (l.topic.includes('error') || l.topic.includes('critical')) badgeColor = 'text-rose-400';
+                if (l.topic.includes('hotspot')) badgeColor = 'text-emerald-400';
+                return `
+                    <div class="flex items-start gap-2 border-b border-slate-900 pb-1">
+                        <span class="text-slate-500 shrink-0">${l.time}</span>
+                        <span class="${badgeColor} shrink-0">[${l.topic}]</span>
+                        <span class="text-slate-200 break-all">${l.msg}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function clearLogs() {
+            AppState.logs = [];
+            renderLogs();
+        }
+
+        function handleTerminalKey(e) {
+            if (e.key !== 'Enter') return;
+            const input = document.getElementById('terminal-input');
+            const cmd = input.value.trim();
+            input.value = '';
+            if (!cmd) return;
+
+            const prompt = document.getElementById('terminal-prompt').textContent;
+            appendTerminalLine(`${prompt} ${cmd}`, 'text-emerald-400 font-semibold');
+            executeRouterOsCommand(cmd);
+        }
+
+        function appendTerminalLine(text, className = 'text-slate-300') {
+            const out = document.getElementById('terminal-output');
+            const div = document.createElement('div');
+            div.className = `whitespace-pre-wrap break-all ${className}`;
+            div.textContent = text;
+            out.appendChild(div);
+            out.scrollTop = out.scrollHeight;
+        }
+
+        async function executeRouterOsCommand(rawCmd) {
+            const trimmed = rawCmd.trim();
+            const lower = trimmed.toLowerCase();
+
+            if (lower === 'clear') {
+                document.getElementById('terminal-output').innerHTML = '';
+                return;
+            }
+
+            if (lower === 'help' || lower === '?') {
+                appendTerminalLine(
+`Panduan RouterOS REST API CLI:
+  Perintah dikirim langsung ke endpoint REST API MikroTik (/rest/<path>).
+  Contoh perintah:
+    /system/resource/print
+    /interface/print
+    /ip/address/print
+    /ip/route/print
+    /ip/dns/print
+    /ping address=8.8.8.8 count=4
+    clear  - Bersihkan layar konsol`, 'text-cyan-300');
+                return;
+            }
+
+            if (!AppState.connected) {
+                appendTerminalLine('Error: Belum terhubung ke router. Silakan hubungkan lewat panel Koneksi Router.', 'text-rose-400');
+                return;
+            }
+
+            // Parse CLI-style input into REST API POST call
+            // Example: "/ping address=8.8.8.8 count=4" or "/system/resource/print"
+            const tokens = trimmed.split(/\s+/);
+            let path = tokens[0].replace(/^\/rest/, '');
+            if (!path.startsWith('/')) path = '/' + path;
+            // Convert space-separated path segments if user typed "/ip address print"
+            const pathParts = [];
+            const payload = {};
+
+            for (let i = 0; i < tokens.length; i++) {
+                const tok = tokens[i];
+                if (tok.includes('=')) {
+                    const eqIdx = tok.indexOf('=');
+                    const k = tok.slice(0, eqIdx);
+                    const v = tok.slice(eqIdx + 1).replace(/^["']|["']$/g, '');
+                    payload[k] = v;
+                } else {
+                    pathParts.push(tok.replace(/^\/+|\/+$/g, ''));
+                }
+            }
+
+            const restEndpoint = '/' + pathParts.join('/');
+
+            try {
+                const result = await rosFetch(restEndpoint, 'POST', payload, 8000);
+                if (result === null || result === undefined) {
+                    appendTerminalLine('(done)', 'text-slate-400');
+                } else {
+                    appendTerminalLine(JSON.stringify(result, null, 2), 'text-slate-200');
+                }
+            } catch (err) {
+                appendTerminalLine(`REST API Error (${restEndpoint}): ${err.message}`, 'text-rose-400');
+            }
+        }
+
+        /**
+         * BACKUP & EXPORT (.RSC, JSON, CSV)
+         */
+        function buildRscScript() {
+            const now = new Date().toISOString();
+            let rsc = `# ${now} by RouterOS ${AppState.system.version} (WebBox Pro Export)\n`;
+            rsc += `# model = ${AppState.system.boardName}\n`;
+            rsc += `# identity = ${AppState.system.identity}\n\n`;
+
+            rsc += `/ip address\n`;
+            AppState.ipAddresses.forEach(ip => {
+                rsc += `add address=${ip.address} interface=${ip.interface} comment="${ip.comment}"${ip.disabled ? ' disabled=yes' : ''}\n`;
+            });
+
+            rsc += `\n/ip firewall filter\n`;
+            AppState.firewallRules.filter(r => r.table === 'filter').forEach(r => {
+                rsc += `add chain=${r.chain} action=${r.action} protocol=${r.proto.split(':')[0]} dst-address=${r.address} comment="${r.comment}"\n`;
+            });
+
+            rsc += `\n/ip firewall nat\n`;
+            AppState.firewallRules.filter(r => r.table === 'nat').forEach(r => {
+                rsc += `add chain=${r.chain} action=${r.action} src-address=${r.address} comment="${r.comment}"\n`;
+            });
+
+            rsc += `\n/queue simple\n`;
+            AppState.queues.forEach(q => {
+                rsc += `add name="${q.name}" target=${q.target} max-limit=${q.maxUp}M/${q.maxDown}M\n`;
+            });
+
+            rsc += `\n/ip hotspot user\n`;
+            AppState.users.filter(u => u.service === 'Hotspot').forEach(u => {
+                rsc += `add name="${u.username}" profile=${u.profile}\n`;
+            });
+
+            return rsc;
+        }
+
+        function updateRscPreview() {
+            document.getElementById('rsc-preview-box').textContent = buildRscScript();
+        }
+
+        function copyRscToClipboard() {
+            const text = buildRscScript();
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Skrip konfigurasi .rsc berhasil disalin ke clipboard.', 'success');
+        }
+
+        function triggerFileDownload(filename, content, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function generateAndDownloadRsc() {
+            triggerFileDownload('mikrotik-backup-config.rsc', buildRscScript(), 'text/plain;charset=utf-8');
+            showToast('File mikrotik-backup-config.rsc berhasil diunduh.', 'success');
+        }
+
+        function downloadJsonSnapshot() {
+            const snapshot = {
+                exportedAt: new Date().toISOString(),
+                system: AppState.system,
+                interfaces: AppState.interfaces,
+                ipAddresses: AppState.ipAddresses,
+                dhcpLeases: AppState.dhcpLeases,
+                activeSessions: AppState.activeSessions,
+                queues: AppState.queues
+            };
+            triggerFileDownload('mikrotik-telemetry.json', JSON.stringify(snapshot, null, 2), 'application/json');
+            showToast('File mikrotik-telemetry.json berhasil diunduh.', 'success');
+        }
+
+        function downloadCsvReport() {
+            let csv = 'Service,Username,IP Address,MAC Address,Uptime,Download (MB),Upload (MB)\n';
+            AppState.activeSessions.forEach(s => {
+                csv += `${s.service},${s.username},${s.ip},${s.mac},${s.uptime},${s.rxMb},${s.txMb}\n`;
+            });
+            triggerFileDownload('mikrotik-active-users.csv', csv, 'text/csv;charset=utf-8');
+            showToast('Laporan CSV pengguna aktif berhasil diunduh.', 'success');
+        }
+    </script>
+</body>
+</html>
